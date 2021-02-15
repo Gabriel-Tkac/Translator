@@ -7,79 +7,66 @@ import java.util.TreeMap;
 
 public class Word implements Comparable<Word> {
 	
-	private String slovo;
-	private String preklad;
-	private Map<String, Set<String>> slovneDruhy = new TreeMap<String, Set<String>>();
-	private Map<String, Set<String>> slovneDruhySK = new TreeMap<String, Set<String>>();
+	private String word;
+	private String translation;
+	private Map<String, Set<String>> wordKinds = new TreeMap<String, Set<String>>();
+	private Map<String, Set<String>> wordKindsSK = new TreeMap<String, Set<String>>();
 	private Set<String> pouzitie = new HashSet<String>();
 	
-	public Word(String slovo, String preklad) {
-		this.slovo = slovo;
-		this.preklad = preklad;
+	public Word(String word, String translation) {
+		this.word = word;
+		this.translation = translation;
 	}
 
-	public String getSlovo() {
-		return slovo;
+	
+	public String getWord() {
+		return word;
 	}
 
-	public void setSlovo(String slovo) {
-		this.slovo = slovo;
+
+	public void setWord(String word) {
+		this.word = word;
 	}
 
-	public String getPreklad() {
-		return preklad;
+
+	public String getTranslation() {
+		return translation;
 	}
 
-	public void setPreklad(String preklad) {
-		this.preklad = preklad;
+	public void setTranslation(String translation) {
+		this.translation = translation;
 	}
 
-	public Map<String, Set<String>> getSlovneDruhy() {
-		return slovneDruhy;
+	public Map<String, Set<String>> getWordKinds() {
+		return wordKinds;
 	}
 
-	public Map<String, Set<String>> getSlovneDruhySK() {
-		return slovneDruhySK;
+	public void setWordKinds(Map<String, Set<String>> wordKinds) {
+		this.wordKinds = wordKinds;
+	}
+
+	public Map<String, Set<String>> getWordKindsSK() {
+		return wordKindsSK;
+	}
+
+	public void setWordKindsSK(Map<String, Set<String>> wordKindsSK) {
+		this.wordKindsSK = wordKindsSK;
 	}
 
 	public Set<String> getPouzitie() {
 		return pouzitie;
-	}
-	
-	public void setPouzitie(String pouzitieItem) {
-		pouzitie.add(pouzitieItem);
-	}
-	
-	public void setSlovneDruhy(Map<String, Set<String>> slovneDruhy) {
-		this.slovneDruhy = slovneDruhy;
-	}
-
-	public void setSlovneDruhySK(Map<String, Set<String>> slovneDruhySK) {
-		this.slovneDruhySK = slovneDruhySK;
 	}
 
 	public void setPouzitie(Set<String> pouzitie) {
 		this.pouzitie = pouzitie;
 	}
 
-	public void setSlovnyDruh(String druh, String vyznam) {
-		Set<String> vyznamy = slovneDruhy.get(druh) != null ? slovneDruhy.get(druh) : new HashSet<String>();
-		vyznamy.add(vyznam);
-		slovneDruhy.put(druh, vyznamy);
-	}
-	
-	public void setSlovnyDruhSK(String druh, String vyznam) {
-		Set<String> vyznamy = slovneDruhySK.get(druh) != null ? slovneDruhy.get(druh) : new HashSet<String>();
-		vyznamy.add(vyznam);
-		slovneDruhy.put(druh, vyznamy);
-	}
-
 	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + ((preklad == null) ? 0 : preklad.hashCode());
-		result = prime * result + ((slovo == null) ? 0 : slovo.hashCode());
+		result = prime * result + ((translation == null) ? 0 : translation.hashCode());
+		result = prime * result + ((word == null) ? 0 : word.hashCode());
 		return result;
 	}
 
@@ -92,23 +79,23 @@ public class Word implements Comparable<Word> {
 		if (getClass() != obj.getClass())
 			return false;
 		Word other = (Word) obj;
-		if (preklad == null) {
-			if (other.preklad != null)
+		if (translation == null) {
+			if (other.translation != null)
 				return false;
-		} else if (!preklad.equals(other.preklad))
+		} else if (!translation.equals(other.translation))
 			return false;
-		if (slovo == null) {
-			if (other.slovo != null)
+		if (word == null) {
+			if (other.word != null)
 				return false;
-		} else if (!slovo.equals(other.slovo))
+		} else if (!word.equals(other.word))
 			return false;
 		return true;
 	}
 
 	@Override
 	public int compareTo(Word o) {
-		int lastCmp = slovo.compareTo(o.slovo);
-        return (lastCmp != 0 ? lastCmp : preklad.compareTo(o.preklad));
+		int lastCmp = word.compareTo(o.word);
+        return (lastCmp != 0 ? lastCmp : translation.compareTo(o.translation));
 	}
 
 }

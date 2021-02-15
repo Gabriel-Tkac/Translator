@@ -8,6 +8,7 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -38,53 +39,55 @@ public class Translator
 	static final String[] slovneDruhyMale = {"podstatné meno", "prídavné meno", "zámeno", "číslovka", "sloveso", "príslovka", "predložka", "spojka", "častica"};
 	static final String[] slovneDruhy = {"Podstatné meno", "Prídavné meno", "Zámeno", "Číslovka", "Sloveso", "Príslovka", "Predložka", "Spojka", "Častica"};
 	static final String[] slovneDruhyEN = {"Noun", "Adjective", "Pronoun", "Number", "Verb", "Adverb", "Preposition", "Conjunction", "Particle"};
-	static final int timeoutS = 10000;
+	static final int timeoutS = 5000;
+	static boolean getMeanings = true;
 	
     public static void main( String[] args ) throws InterruptedException, IOException
     {
     	System.setProperty("webdriver.gecko.driver", "C://geckodriver.exe");
     	
-    	Map<String, Boolean> spracovanieSlov = new TreeMap<String, Boolean>();
-    	Set<String> zadania = readExcel();
-    	for (String zadanie: zadania)
-    		spracovanieSlov.put(zadanie, false);
     	
-        Set<Word> slova = new HashSet<Word>();
+    	Set<String> inputWords = readExcel();
+    	
+        Set<Word> words = new HashSet<Word>();
         
         File log = new File("C:\\Users\\a808683\\Documents\\Log.log");
         FileWriter fw = new FileWriter(log);
         PrintWriter pw = new PrintWriter(fw);
-        pw.println("Neuspesne zapisane slova: ");
         
         // TimeOut
         long start = System.currentTimeMillis();
+        System.out.println("START ON: " + new Date());
         int timeout = timeoutS * 1000;
         
-        boolean nespracovane = true;
-        while ( ( (System.currentTimeMillis() - start) < timeout) && nespracovane) {
-        	System.out.println("Od startu uplynulo: " + (System.currentTimeMillis() - start));
-        	Spracovanie spr =  spracujSlova(zadania);
-        	slova.addAll(spr.slova);
+        boolean unprocessed = true;
+        long timeElapsed = System.currentTimeMillis() - start;
+        while ( (timeElapsed  < timeout) && unprocessed) {
+        	timeElapsed = System.currentTimeMillis() - start;
+        	System.out.println("Seconds since start: " + timeElapsed/1000);
+        	Processing spr =  processInput(inputWords);
+        	words.addAll(spr.words);
         	
         	try {
         		Thread.sleep(10000);
-	        	Set<String> nespracovaneSlova = spr.nespracovane;
+	        	Set<String> nespracovaneSlova = spr.unprocessed;
 	        	if (nespracovaneSlova.size() > 0) {
-	        		zadania = nespracovaneSlova;
-	        		spr =  spracujSlova(zadania);
-	        		nespracovaneSlova = spr.nespracovane;
-	        		slova.addAll(spr.slova);
+	        		System.out.println("V predchadzajucom kole zostalo nespracovanych slov: " + nespracovaneSlova.size());
+	        		inputWords = nespracovaneSlova;
+	        		spr =  processInput(inputWords);
+	        		nespracovaneSlova = spr.unprocessed;
+	        		words.addAll(spr.words);
 	        	}
 	        	else
-	        		nespracovane = false;
+	        		unprocessed = false;
         	}
         	catch (Exception ex) {
         		;
         	}
         }
         
-        if (nespracovane) {
-	        List<String> zoradeneNeuspesne = new ArrayList<String>(zadania);
+        if (unprocessed) {
+	        List<String> zoradeneNeuspesne = new ArrayList<String>(inputWords);
 	        Collections.sort(zoradeneNeuspesne);
 	        for (String slovo: zoradeneNeuspesne)
 	        	pw.println(slovo);
@@ -93,63 +96,65 @@ public class Translator
         pw.close();
         
         try {
-			createExcel(slova);
+			createExcel(words);
+			System.out.println("Total time elapsed: " + (int) (System.currentTimeMillis() - start)/1000 + " s");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
     }
     
-    static Spracovanie spracujSlova(Set<String> zadania) {
-    	Spracovanie spracovanie = new Spracovanie();
+    static Processing processInput(Set<String> inputWords) {
+    	Processing processing = new Processing();
     	
-    	Set<Word> slova = new HashSet<Word>();
-    	Set<String> nespracovane = new HashSet<String>();
+    	Set<Word> words = new HashSet<Word>();
+    	Set<String> unprocessed = new HashSet<String>();
     	
     	WebDriver driver = new FirefoxDriver();
-    	//JavascriptExecutor js = (JavascriptExecutor) driver;
     	driver.get("https://translate.google.as/");
     	//driver.get("https://translate.google.com/?hl=sk#view=home&op=translate&sl=en&tl=sk");
         WebElement input = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[1]/div[2]/div[2]/c-wiz[1]/span/span/div/textarea"));
         
-        for (String toTransalte: zadania) {
+        for (String toTransalte: inputWords) {
         	
 	        try {
 	        	Thread.sleep(2000);
 	        	input.clear();
 	        	
-		        Word slovo = setENVyznamy(driver, input, toTransalte);
+		        Word slovo = setENMeanings(driver, input, toTransalte);
 		        
-		        try {
-		        	slovo = getPriklady(driver, slovo);
+		        if (getMeanings) {
+		        
+			        try {
+			        	slovo = getExamples(driver, slovo);
+			        }
+			        catch (Exception e) {}
+			        
+			        slovo = setSKMeanings(driver, slovo);
 		        }
-		        catch (Exception e) {}
-		        
-		        slovo = setSKVyznamy(driver, slovo);	        
 		        
 		        input.clear();
 		        
-		        System.out.println("Slovo ma slovnych druhov: " + slovo.getSlovneDruhy().size());
-		        slova.add(slovo);
+		        words.add(slovo);
 	        }
 	        catch (Exception e) {
 	        	System.out.println("Chyba pri spracovani slova " + toTransalte);
 	        	if (!toTransalte.isBlank())
-	        		nespracovane.add(toTransalte);
+	        		unprocessed.add(toTransalte);
 	        }
         }
         
-        spracovanie.nespracovane = nespracovane;
-        spracovanie.slova = slova;
+        processing.unprocessed = unprocessed;
+        processing.words = words;
         
-        return spracovanie;
+        return processing;
     }
     
-    static class Spracovanie {
-    	Set<Word> slova = new HashSet<Word>();
-    	Set<String> nespracovane = new HashSet<String>();
+    static class Processing {
+    	Set<Word> words = new HashSet<Word>();
+    	Set<String> unprocessed = new HashSet<String>();
     }
     
-    static Word setENVyznamy(WebDriver driver, WebElement input, String toTranslate) throws InterruptedException {
+    static Word setENMeanings(WebDriver driver, WebElement input, String toTranslate) throws InterruptedException {
     	input.sendKeys(toTranslate);
         Thread.sleep(1000);
         
@@ -165,66 +170,54 @@ public class Translator
         
         WebElement description = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[2]/c-wiz/section/div/div/div[1]/div[1]/div/div"));
 		List<WebElement> inner = allElements(description);
-        System.out.println("Z elementu sa nacitalo " + inner.size() + " elementov 'div'");
         
         WebElement output = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[1]/div[2]/div[2]/c-wiz[2]/div[5]/div/div[1]"));
-        String preklad = output.getText();
-        System.out.println("Preklad: " + preklad);
+        String translation = output.getText();
+        System.out.println("Translation: " + translation);
         
         Set<String> obsahy = new LinkedHashSet<>();
         
-        Word slovo = new Word(toTranslate, preklad);
+        Word word = new Word(toTranslate, translation);
         
-        // Slovne druhy - EN
-        Map<String, Set<String>> slovneDruhySlova = new TreeMap<String, Set<String>>();
-        String slovnyDruh = "";
+        if (!getMeanings)
+        	return word;
+        
+     // Word kinds - EN
+        Map<String, Set<String>> wordKinds = new TreeMap<String, Set<String>>();
+        String wordKind = "";
         
         for (WebElement element: inner) {
         	
         	if (element.getText() != null && !element.getText().isBlank()) {
         		
-        		if (jeSlovnyDruh(Arrays.asList(slovneDruhy), element.getText())) {
+        		if (isWordKind(Arrays.asList(slovneDruhy), element.getText())) {
         			obsahy.add(element.getText());
-        			slovnyDruh = element.getText();
-        			//System.out.println("Nasiel sa slovny druh: " + slovnyDruh);
-        			
+        			wordKind = element.getText();
         		}
         		
         		if (element.getAttribute("class").equals("fw3eif") && element.getAttribute("lang") != null && !element.getAttribute("lang").isEmpty()) {
-        			String vyznam = element.getText();
-        			//System.out.println("K tomuto slovnemu druhu mame vyznam: " + vyznam);
-        			Set<String> vyznamy = null;
-        			if (slovneDruhySlova.containsKey(slovnyDruh)) {
-        				//System.out.println("Mapa uz obsahovala " + slovnyDruh);
-        				vyznamy = slovneDruhySlova.get(slovnyDruh);
-        				//System.out.println("Pocet vyznamov bol " + vyznamy.size());
+        			String meaning = element.getText();
+        			Set<String> meanings = null;
+        			if (wordKinds.containsKey(wordKind)) {
+        				meanings = wordKinds.get(wordKind);
         			}
         			else {
-        				vyznamy = new HashSet<String>();
+        				meanings = new HashSet<String>();
         			}
-        			vyznamy.add(vyznam);
-        			//System.out.println("Novy pocet vyznamov pre slovny druh " + slovnyDruh + " je " + vyznamy.size());
-        			slovneDruhySlova.put(slovnyDruh, vyznamy);
-        			//System.out.println("Aktualna velkost mapy: " + slovneDruhySlova.size());
+        			meanings.add(meaning);
+        			wordKinds.put(wordKind, meanings);
             	}
         	}
         }
         
-        System.out.println("Slovnik obsahuje slovnych druhov: " + slovneDruhySlova.size());
-        slovo.setSlovneDruhy(slovneDruhySlova);
+        word.setWordKinds(wordKinds);
         
-        return slovo;
+        return word;
     }
     
-    static Word setSKVyznamy(WebDriver driver, Word slovo) {
+    static Word setSKMeanings(WebDriver driver, Word word) {
         WebElement descriptionSK = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[2]/c-wiz/section/div/div/div[2]/div/div/div[1]"));
-//        List<WebElement> slDr = driver.findElements(By.className("Nv4rrc"));
-//        System.out.println("Nasiel som slovne druhy: " + slDr.size());
-//        for (WebElement sl: slDr)
-//        	System.out.println(sl.getText());
-        
-        //WebElement expand = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[2]/c-wiz/section/div/div/div[2]/div/div/div[2]/div[1]"));
-        
+     
         try {
         	WebElement expand = descriptionSK.findElements(By.className("VK4HE")).get(1);
         	expand.click();
@@ -235,16 +228,14 @@ public class Translator
         }
         
         List<WebElement> innerSK = allElements(descriptionSK);
-        System.out.println("Z elementu pre SK sa nacitalo " + innerSK.size() + " elementov 'div'");
         
-        
-        Map<String, Set<String>> slovneDruhySlova = new TreeMap<String, Set<String>>();
-        String slovnyDruh = "";
+        Map<String, Set<String>> wordKinds = new TreeMap<String, Set<String>>();
+        String wordKind = "";
         for (WebElement element: innerSK) {
         	
         	if (element.getText() != null && !element.getText().isBlank()) {
-        		if (jeSlovnyDruh(Arrays.asList(slovneDruhy), element.getText()))
-        			slovnyDruh = element.getText();
+        		if (isWordKind(Arrays.asList(slovneDruhy), element.getText()))
+        			wordKind = element.getText();
         	}
         	if (element.getAttribute("class").equals("KnIHac")) {
         		element = element.findElement(By.className("kgnlhe"));
@@ -253,45 +244,40 @@ public class Translator
             			element.getAttribute("role") != null && !element.getAttribute("role").isEmpty() &&
             			element.getAttribute("role").equals("button")) {
                 		if (element.getText() != null && !element.getText().isBlank()) {
-                			if (!slovnyDruh.isEmpty()) {
-                				Set<String> vyznamy = null;
-                    			if (slovneDruhySlova.containsKey(slovnyDruh)) {
-                    				//System.out.println("Mapa uz obsahovala " + slovnyDruh);
-                    				vyznamy = slovneDruhySlova.get(slovnyDruh);
-                    				//System.out.println("Pocet vyznamov bol " + vyznamy.size());
+                			if (!wordKind.isEmpty()) {
+                				Set<String> meanings = null;
+                    			if (wordKinds.containsKey(wordKind)) {
+                    				meanings = wordKinds.get(wordKind);
                     			}
                     			else {
-                    				vyznamy = new HashSet<String>();
+                    				meanings = new HashSet<String>();
                     			}
-                    			vyznamy.add(element.getText());
-                    			//System.out.println("Novy pocet vyznamov pre slovny druh " + slovnyDruh + " je " + vyznamy.size());
-                    			slovneDruhySlova.put(slovnyDruh, vyznamy);
+                    			meanings.add(element.getText());
+                    			wordKinds.put(wordKind, meanings);
                 			}
                 		}	
                 	}
         	}
         }
         
-        System.out.println("Slovnik obsahuje SLOVENSKYCH slovnych druhov: " + slovneDruhySlova.size());
-        slovo.setSlovneDruhySK(slovneDruhySlova);
+        word.setWordKindsSK(wordKinds);
     	
-    	return slovo;
+    	return word;
     }
     
-    static Word getPriklady(WebDriver driver, Word slovo) {
-    	Set<String> priklady = new HashSet<String>(5);
-    	WebElement examples = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[2]/c-wiz/section/div/div/div[1]/div[2]/div/div[1]"));
-    	List<WebElement> elements = examples.findElements(By.tagName("html-blob"));
+    static Word getExamples(WebDriver driver, Word slovo) {
+    	Set<String> examples = new HashSet<String>(5);
+    	WebElement examplesElement = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[2]/c-wiz/section/div/div/div[1]/div[2]/div/div[1]"));
+    	List<WebElement> elements = examplesElement.findElements(By.tagName("html-blob"));
     	int pocet = 0;
     	for (WebElement element: elements) {
-    		//System.out.println("Mame priklad : " + element.getText());
     		pocet++;
-    		priklady.add(element.getText());
+    		examples.add(element.getText());
     		if (pocet >= 5)
     			break;
     	}
     	
-    	slovo.setPouzitie(priklady);
+    	slovo.setPouzitie(examples);
     	return slovo;
     }
     
@@ -319,17 +305,17 @@ public class Translator
     	return elements;
     }
     
-    static boolean jeSlovnyDruh(List<String> slovneDruhy, String slovo) {
-    	boolean jeSlovnyDruh = false;
-    	slovo = slovo.trim();
-    	for (String druh: slovneDruhy) {
-    		if (slovo.equalsIgnoreCase(druh)) {
-    			jeSlovnyDruh = true;
+    static boolean isWordKind(List<String> wordKinds, String word) {
+    	boolean isWordKind = false;
+    	word = word.trim();
+    	for (String kind: slovneDruhy) {
+    		if (word.equalsIgnoreCase(kind)) {
+    			isWordKind = true;
     			break;
     		}
     	}
     	
-    	return jeSlovnyDruh;
+    	return isWordKind;
     }
     
     static void createExcel(Set<Word> slova) throws IOException {
@@ -342,11 +328,11 @@ public class Translator
     	int rowNum = 0;
     	for (Word slovo: sorted) {
     		Row rowInit = sheet.createRow(rowNum++);
-    		rowInit.createCell(0).setCellValue(slovo.getSlovo());
-    		rowInit.createCell(1).setCellValue(slovo.getPreklad());
+    		rowInit.createCell(0).setCellValue(slovo.getWord());
+    		rowInit.createCell(1).setCellValue(slovo.getTranslation());
     		
-    		System.out.println("Vytvor Excel - spracuvame slovo " + slovo.getSlovo());
-    		// Slovne druhy pre kazde slovo
+    		System.out.println("createExcel - processingWord " + slovo.getWord());
+    		// Word kinds for every word
     		int index = 0;
     		for (String druh: slovneDruhyMale) {
     			
@@ -354,25 +340,20 @@ public class Translator
     			int druhovSK = 0;
     			Set<String> druhySK = new LinkedHashSet<>();
     			Set<String> druhyEN = new LinkedHashSet<>();
-    			if (slovo.getSlovneDruhy().size() > 0 && slovo.getSlovneDruhy().containsKey(druh)) {
-    				//System.out.println("Nasiel sa slovny druh: " + druh);
-    				druhyEN = slovo.getSlovneDruhy().get(druh);
+    			if (slovo.getWordKinds().size() > 0 && slovo.getWordKinds().containsKey(druh)) {
+    				druhyEN = slovo.getWordKinds().get(druh);
     				druhovEN = druhyEN.size();
-    				//System.out.println("Toto slovo ma EN vyznamov pre slovny druh: " + druhovEN);
     			}
-    			if (slovo.getSlovneDruhySK().size() > 0 && slovo.getSlovneDruhySK().containsKey(druh)) {
-    				//System.out.println("Nasiel sa slovny druh SK: " + druh);
-    				druhySK = slovo.getSlovneDruhySK().get(druh);
+    			if (slovo.getWordKindsSK().size() > 0 && slovo.getWordKindsSK().containsKey(druh)) {
+    				druhySK = slovo.getWordKindsSK().get(druh);
     				druhovSK = druhySK.size();
-    				//System.out.println("Toto slovo ma SK vyznamov pre slovny druh: " + druhovSK);
     			}
     			int max = Math.max(druhovEN, druhovSK);
     			
     			if (max > 0) {
     				Row headerRow = sheet.createRow(rowNum++);
     				headerRow.createCell(0).setCellValue(slovneDruhy[index]);
-    				//sheet.addMergedRegion(new CellRangeAddress(rowNum, rowNum, 0, 1));
-		    		for (int i = 0; i < max; i++) {
+    				for (int i = 0; i < max; i++) {
 		    			Row row = sheet.createRow(rowNum++);
 		    			if (!druhyEN.isEmpty())
 		    				row.createCell(0).setCellValue(getValueIfExists(druhyEN, i));
@@ -415,7 +396,7 @@ public class Translator
 			e.printStackTrace();
 		}
     	
-    	System.out.println("Nacitanych slov: " + slova.size());
+    	System.out.println("Input words: " + slova.size());
     	return slova;
     }
     
@@ -428,16 +409,6 @@ public class Translator
     		ArrayList<String> list = new ArrayList<>(set);
     		return list.get(i);
     	}
-    }
-    
-    static boolean jeNespracovane(Map<String, Boolean> spracovanieSlov) {
-    	boolean jeNespracovane = false;
-    	Set<String> keys = spracovanieSlov.keySet();
-    	for (String key: keys)
-    		if (spracovanieSlov.get(key) == false)
-    			return true;
-    	
-    	return jeNespracovane;
     }
 }
 
