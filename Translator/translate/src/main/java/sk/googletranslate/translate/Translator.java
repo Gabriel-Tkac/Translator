@@ -1,18 +1,17 @@
 package sk.googletranslate.translate;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -23,10 +22,8 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
-import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.openqa.selenium.By;
-import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.firefox.FirefoxDriver;
@@ -41,6 +38,7 @@ public class Translator
 	static final String[] slovneDruhyMale = {"podstatné meno", "prídavné meno", "zámeno", "číslovka", "sloveso", "príslovka", "predložka", "spojka", "častica"};
 	static final String[] slovneDruhy = {"Podstatné meno", "Prídavné meno", "Zámeno", "Číslovka", "Sloveso", "Príslovka", "Predložka", "Spojka", "Častica"};
 	static final String[] slovneDruhyEN = {"Noun", "Adjective", "Pronoun", "Number", "Verb", "Adverb", "Preposition", "Conjunction", "Particle"};
+	static final int timeoutS = 10000;
 	
     public static void main( String[] args ) throws InterruptedException, IOException
     {
@@ -60,12 +58,12 @@ public class Translator
         
         // TimeOut
         long start = System.currentTimeMillis();
-        int timeout = 150 * 1000;
+        int timeout = timeoutS * 1000;
         
         boolean nespracovane = true;
         while ( ( (System.currentTimeMillis() - start) < timeout) && nespracovane) {
         	System.out.println("Od startu uplynulo: " + (System.currentTimeMillis() - start));
-        	Spracovanie spr =  spracujSlova(zadania, pw);
+        	Spracovanie spr =  spracujSlova(zadania);
         	slova.addAll(spr.slova);
         	
         	try {
@@ -73,7 +71,7 @@ public class Translator
 	        	Set<String> nespracovaneSlova = spr.nespracovane;
 	        	if (nespracovaneSlova.size() > 0) {
 	        		zadania = nespracovaneSlova;
-	        		spr =  spracujSlova(zadania, pw);
+	        		spr =  spracujSlova(zadania);
 	        		nespracovaneSlova = spr.nespracovane;
 	        		slova.addAll(spr.slova);
 	        	}
@@ -81,10 +79,16 @@ public class Translator
 	        		nespracovane = false;
         	}
         	catch (Exception ex) {
-        		nespracovane = false;
+        		;
         	}
         }
         
+        if (nespracovane) {
+	        List<String> zoradeneNeuspesne = new ArrayList<String>(zadania);
+	        Collections.sort(zoradeneNeuspesne);
+	        for (String slovo: zoradeneNeuspesne)
+	        	pw.println(slovo);
+        }
         
         pw.close();
         
@@ -95,21 +99,23 @@ public class Translator
 		}
     }
     
-    static Spracovanie spracujSlova(Set<String> zadania, PrintWriter pw) {
+    static Spracovanie spracujSlova(Set<String> zadania) {
     	Spracovanie spracovanie = new Spracovanie();
     	
     	Set<Word> slova = new HashSet<Word>();
     	Set<String> nespracovane = new HashSet<String>();
     	
     	WebDriver driver = new FirefoxDriver();
-    	JavascriptExecutor js = (JavascriptExecutor) driver;
-    	driver.get("https://translate.google.com/?hl=sk#view=home&op=translate&sl=en&tl=sk");
+    	//JavascriptExecutor js = (JavascriptExecutor) driver;
+    	driver.get("https://translate.google.as/");
+    	//driver.get("https://translate.google.com/?hl=sk#view=home&op=translate&sl=en&tl=sk");
         WebElement input = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[1]/div[2]/div[2]/c-wiz[1]/span/span/div/textarea"));
         
         for (String toTransalte: zadania) {
         	
 	        try {
-	        	Thread.sleep(1000);
+	        	Thread.sleep(2000);
+	        	input.clear();
 	        	
 		        Word slovo = setENVyznamy(driver, input, toTransalte);
 		        
@@ -127,7 +133,6 @@ public class Translator
 	        }
 	        catch (Exception e) {
 	        	System.out.println("Chyba pri spracovani slova " + toTransalte);
-	        	pw.println(toTransalte);
 	        	if (!toTransalte.isBlank())
 	        		nespracovane.add(toTransalte);
 	        }
@@ -146,7 +151,6 @@ public class Translator
     
     static Word setENVyznamy(WebDriver driver, WebElement input, String toTranslate) throws InterruptedException {
     	input.sendKeys(toTranslate);
-        System.out.println("Text v elemente " +input.getText());
         Thread.sleep(1000);
         
         WebElement resultTab = driver.findElement(By.className("Sp3AF"));
@@ -223,7 +227,6 @@ public class Translator
         
         try {
         	WebElement expand = descriptionSK.findElements(By.className("VK4HE")).get(1);
-        	System.out.println("Pokusame sa expandovat element " + expand.getText());
         	expand.click();
 	        expand.findElement(By.tagName("i")).click();
         }
@@ -281,7 +284,7 @@ public class Translator
     	List<WebElement> elements = examples.findElements(By.tagName("html-blob"));
     	int pocet = 0;
     	for (WebElement element: elements) {
-    		System.out.println("Mame priklad : " + element.getText());
+    		//System.out.println("Mame priklad : " + element.getText());
     		pocet++;
     		priklady.add(element.getText());
     		if (pocet >= 5)
@@ -333,9 +336,11 @@ public class Translator
     	Workbook workbook = new XSSFWorkbook();
     	Sheet sheet = workbook.createSheet("Preklady");
     	
+    	List<Word> sorted = new ArrayList<Word>(slova);
+    	Collections.sort(sorted);
     	
     	int rowNum = 0;
-    	for (Word slovo: slova) {
+    	for (Word slovo: sorted) {
     		Row rowInit = sheet.createRow(rowNum++);
     		rowInit.createCell(0).setCellValue(slovo.getSlovo());
     		rowInit.createCell(1).setCellValue(slovo.getPreklad());
@@ -350,16 +355,16 @@ public class Translator
     			Set<String> druhySK = new LinkedHashSet<>();
     			Set<String> druhyEN = new LinkedHashSet<>();
     			if (slovo.getSlovneDruhy().size() > 0 && slovo.getSlovneDruhy().containsKey(druh)) {
-    				System.out.println("Nasiel sa slovny druh: " + druh);
+    				//System.out.println("Nasiel sa slovny druh: " + druh);
     				druhyEN = slovo.getSlovneDruhy().get(druh);
     				druhovEN = druhyEN.size();
-    				System.out.println("Toto slovo ma EN vyznamov pre slovny druh: " + druhovEN);
+    				//System.out.println("Toto slovo ma EN vyznamov pre slovny druh: " + druhovEN);
     			}
     			if (slovo.getSlovneDruhySK().size() > 0 && slovo.getSlovneDruhySK().containsKey(druh)) {
-    				System.out.println("Nasiel sa slovny druh SK: " + druh);
+    				//System.out.println("Nasiel sa slovny druh SK: " + druh);
     				druhySK = slovo.getSlovneDruhySK().get(druh);
     				druhovSK = druhySK.size();
-    				System.out.println("Toto slovo ma SK vyznamov pre slovny druh: " + druhovSK);
+    				//System.out.println("Toto slovo ma SK vyznamov pre slovny druh: " + druhovSK);
     			}
     			int max = Math.max(druhovEN, druhovSK);
     			

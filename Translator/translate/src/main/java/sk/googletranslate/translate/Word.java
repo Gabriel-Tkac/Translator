@@ -1,12 +1,11 @@
 package sk.googletranslate.translate;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
-public class Word {
+public class Word implements Comparable<Word> {
 	
 	private String slovo;
 	private String preklad;
@@ -73,6 +72,43 @@ public class Word {
 		Set<String> vyznamy = slovneDruhySK.get(druh) != null ? slovneDruhy.get(druh) : new HashSet<String>();
 		vyznamy.add(vyznam);
 		slovneDruhy.put(druh, vyznamy);
+	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((preklad == null) ? 0 : preklad.hashCode());
+		result = prime * result + ((slovo == null) ? 0 : slovo.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		Word other = (Word) obj;
+		if (preklad == null) {
+			if (other.preklad != null)
+				return false;
+		} else if (!preklad.equals(other.preklad))
+			return false;
+		if (slovo == null) {
+			if (other.slovo != null)
+				return false;
+		} else if (!slovo.equals(other.slovo))
+			return false;
+		return true;
+	}
+
+	@Override
+	public int compareTo(Word o) {
+		int lastCmp = slovo.compareTo(o.slovo);
+        return (lastCmp != 0 ? lastCmp : preklad.compareTo(o.preklad));
 	}
 
 }
