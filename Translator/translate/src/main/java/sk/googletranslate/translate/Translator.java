@@ -39,8 +39,8 @@ public class Translator
 	static final String[] slovneDruhyMale = {"podstatné meno", "prídavné meno", "zámeno", "číslovka", "sloveso", "príslovka", "predložka", "spojka", "častica"};
 	static final String[] slovneDruhy = {"Podstatné meno", "Prídavné meno", "Zámeno", "Číslovka", "Sloveso", "Príslovka", "Predložka", "Spojka", "Častica"};
 	static final String[] slovneDruhyEN = {"Noun", "Adjective", "Pronoun", "Number", "Verb", "Adverb", "Preposition", "Conjunction", "Particle"};
-	static final int timeoutS = 5000;
-	static boolean getMeanings = true;
+	static final int timeoutS = 1200;
+	static boolean getMeanings = false;
 	
     public static void main( String[] args ) throws InterruptedException, IOException
     {
@@ -158,18 +158,25 @@ public class Translator
     	input.sendKeys(toTranslate);
         Thread.sleep(1000);
         
-        WebElement resultTab = driver.findElement(By.className("Sp3AF"));
-        try {
-        	List<WebElement> expands = resultTab.findElements(By.className("VK4HE"));
-        	for (WebElement expand: expands)
-        		expand.click();
-        }
-        catch (Exception e) {
-        	
+        if (getMeanings) {
+        	WebElement resultTab = driver.findElement(By.className("Sp3AF"));
+        	try {
+            	List<WebElement> expands = resultTab.findElements(By.className("VK4HE"));
+            	for (WebElement expand: expands)
+            		expand.click();
+            }
+            catch (Exception e) {
+            	
+            }
         }
         
-        WebElement description = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[2]/c-wiz/section/div/div/div[1]/div[1]/div/div"));
-		List<WebElement> inner = allElements(description);
+        
+        List<WebElement> inner = null;
+        WebElement description = null;
+        if (getMeanings) {
+        	description = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[2]/c-wiz/section/div/div/div[1]/div[1]/div/div"));
+        	inner = allElements(description);
+        }
         
         WebElement output = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[1]/div[2]/div[2]/c-wiz[2]/div[5]/div/div[1]"));
         String translation = output.getText();
