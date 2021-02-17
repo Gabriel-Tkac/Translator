@@ -1,6 +1,6 @@
 # Translator
 
-Uses Google Translate controlled by Selenium for Firefox to auto translate english words to slovak.
+Uses Google Translate controlled by Selenium for Firefox to auto translate english words.
 After some customization, it can be used to auto translate any language pair using also other browsers.
 
 Reads an Excel (xslt) file with a single column, containing english words you want to translate.
