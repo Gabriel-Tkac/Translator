@@ -1,17 +1,14 @@
 package sk.googletranslate.translate;
 
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 
 public class Word implements Comparable<Word> {
 	
 	private String word;
 	private String translation;
-	private Map<String, Set<String>> wordKinds = new TreeMap<String, Set<String>>();
-	private Map<String, Set<String>> wordKindsSK = new TreeMap<String, Set<String>>();
-	private Set<String> pouzitie = new HashSet<String>();
+	private Map<String, Map<String, String>> wordKinds = new TreeMap<String, Map<String, String>>();
+	private Map<String, String> examples = new TreeMap<String, String>();
 	
 	public Word(String word, String translation) {
 		this.word = word;
@@ -37,29 +34,22 @@ public class Word implements Comparable<Word> {
 		this.translation = translation;
 	}
 
-	public Map<String, Set<String>> getWordKinds() {
+	public Map<String, Map<String, String>> getWordKinds() {
 		return wordKinds;
 	}
 
-	public void setWordKinds(Map<String, Set<String>> wordKinds) {
+	public void setWordKinds(Map<String, Map<String, String>> wordKinds) {
 		this.wordKinds = wordKinds;
 	}
 
-	public Map<String, Set<String>> getWordKindsSK() {
-		return wordKindsSK;
+	public Map<String, String> getExamples() {
+		return examples;
 	}
 
-	public void setWordKindsSK(Map<String, Set<String>> wordKindsSK) {
-		this.wordKindsSK = wordKindsSK;
+	public void setExamples(Map<String, String> examples) {
+		this.examples = examples;
 	}
 
-	public Set<String> getPouzitie() {
-		return pouzitie;
-	}
-
-	public void setPouzitie(Set<String> pouzitie) {
-		this.pouzitie = pouzitie;
-	}
 
 	@Override
 	public int hashCode() {

@@ -8,7 +8,6 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -19,10 +18,14 @@ import java.util.TreeMap;
 import org.apache.poi.EncryptedDocumentException;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
@@ -45,152 +48,119 @@ public class Translator
     public static void main( String[] args ) throws InterruptedException, IOException
     {
     	System.setProperty("webdriver.gecko.driver", "C://geckodriver.exe");
-    	
-    	
-    	Set<String> inputWords = readExcel();
-    	
-        Set<Word> words = new HashSet<Word>();
+    	WebDriver driver = new FirefoxDriver();
+    	driver.get("https://translate.google.as/");
+    	//driver.get("https://translate.google.com/?hl=sk#view=home&op=translate&sl=en&tl=sk");
         
-        File log = new File("C:\\Users\\a808683\\Documents\\Log.log");
+    	Set<String> inputWords = readWords("C:\\Users\\a808683\\Documents");
+    	
+    	File log = new File("C:\\Users\\a808683\\Documents\\Log.log");
         FileWriter fw = new FileWriter(log);
         PrintWriter pw = new PrintWriter(fw);
         
-        // TimeOut
-        long start = System.currentTimeMillis();
-        System.out.println("START ON: " + new Date());
-        int timeout = timeoutS * 1000;
+        Set<Word> words = new LinkedHashSet<Word>();
         
-        boolean unprocessed = true;
-        long timeElapsed = System.currentTimeMillis() - start;
-        while ( (timeElapsed  < timeout) && unprocessed) {
-        	timeElapsed = System.currentTimeMillis() - start;
-        	System.out.println("Seconds since start: " + timeElapsed/1000);
-        	Processing spr =  processInput(inputWords);
-        	words.addAll(spr.words);
+        long start = System.currentTimeMillis();
+        
+        int processedWords = 0;
+        for (String inputWord: inputWords) {
+        	processedWords++;
+        	System.out.println("Spracuvame slovo v poradi: " + processedWords);
         	
         	try {
-        		Thread.sleep(10000);
-	        	Set<String> nespracovaneSlova = spr.unprocessed;
-	        	if (nespracovaneSlova.size() > 0) {
-	        		System.out.println("V predchadzajucom kole zostalo nespracovanych slov: " + nespracovaneSlova.size());
-	        		inputWords = nespracovaneSlova;
-	        		spr =  processInput(inputWords);
-	        		nespracovaneSlova = spr.unprocessed;
-	        		words.addAll(spr.words);
-	        	}
-	        	else
-	        		unprocessed = false;
+        		Thread.sleep(1000);
+        		
+        		Word word = processInput(inputWord,  driver);
+        		words.add(word);
         	}
-        	catch (Exception ex) {
-        		;
+        	catch (Exception e) {
+        		pw.println(inputWord);
+        		System.out.println("Slovo " + inputWord + " sa nespracovalo spravne");;
         	}
-        }
-        
-        if (unprocessed) {
-	        List<String> zoradeneNeuspesne = new ArrayList<String>(inputWords);
-	        Collections.sort(zoradeneNeuspesne);
-	        for (String slovo: zoradeneNeuspesne)
-	        	pw.println(slovo);
+        	
+        	if ((processedWords % 100) == 0) {
+            	try {
+            		createExcel(words, processedWords);
+            		words.clear();
+        			System.out.println("Total time elapsed: " + (int) (System.currentTimeMillis() - start)/1000 + " s");
+        		} catch (IOException e) {
+        			e.printStackTrace();
+        		}
+            }
         }
         
         pw.close();
         
-        try {
-			createExcel(words);
-			System.out.println("Total time elapsed: " + (int) (System.currentTimeMillis() - start)/1000 + " s");
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
     }
     
-    static Processing processInput(Set<String> inputWords) {
-    	Processing processing = new Processing();
+    static Word processInput(String inputWord, WebDriver driver) throws InterruptedException {
     	
-    	Set<Word> words = new HashSet<Word>();
-    	Set<String> unprocessed = new HashSet<String>();
+    	Thread.sleep(2000);
     	
-    	WebDriver driver = new FirefoxDriver();
-    	driver.get("https://translate.google.as/");
-    	//driver.get("https://translate.google.com/?hl=sk#view=home&op=translate&sl=en&tl=sk");
-        WebElement input = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[1]/div[2]/div[2]/c-wiz[1]/span/span/div/textarea"));
+    	String transl = translate(inputWord, driver);
+    	if (transl.contains("verified_user"))
+    		transl = transl.replace("verified_user", "");
+        Word word = new Word(inputWord, transl);
         
-        for (String toTransalte: inputWords) {
-        	
-	        try {
-	        	Thread.sleep(2000);
-	        	input.clear();
-	        	
-		        Word slovo = setENMeanings(driver, input, toTransalte);
-		        
-		        if (getMeanings) {
-		        
-			        try {
-			        	slovo = getExamples(driver, slovo);
-			        }
-			        catch (Exception e) {}
-			        
-			        slovo = setSKMeanings(driver, slovo);
-		        }
-		        
-		        input.clear();
-		        
-		        words.add(slovo);
-	        }
-	        catch (Exception e) {
-	        	System.out.println("Chyba pri spracovani slova " + toTransalte);
-	        	if (!toTransalte.isBlank())
-	        		unprocessed.add(toTransalte);
-	        }
-        }
-        
-        processing.unprocessed = unprocessed;
-        processing.words = words;
-        
-        return processing;
-    }
-    
-    static class Processing {
-    	Set<Word> words = new HashSet<Word>();
-    	Set<String> unprocessed = new HashSet<String>();
-    }
-    
-    static Word setENMeanings(WebDriver driver, WebElement input, String toTranslate) throws InterruptedException {
-    	input.sendKeys(toTranslate);
-        Thread.sleep(1000);
-        
-        if (getMeanings) {
-        	WebElement resultTab = driver.findElement(By.className("Sp3AF"));
-        	try {
-            	List<WebElement> expands = resultTab.findElements(By.className("VK4HE"));
-            	for (WebElement expand: expands)
-            		expand.click();
-            }
-            catch (Exception e) {
-            	
-            }
-        }
-        
-        
-        List<WebElement> inner = null;
-        WebElement description = null;
-        if (getMeanings) {
-        	description = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[2]/c-wiz/section/div/div/div[1]/div[1]/div/div"));
-        	inner = allElements(description);
-        }
-        
-        WebElement output = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[1]/div[2]/div[2]/c-wiz[2]/div[5]/div/div[1]"));
-        String translation = output.getText();
-        System.out.println("Translation: " + translation);
-        
-        Set<String> obsahy = new LinkedHashSet<>();
-        
-        Word word = new Word(toTranslate, translation);
-        
-        if (!getMeanings)
-        	return word;
-        
-     // Word kinds - EN
         Map<String, Set<String>> wordKinds = new TreeMap<String, Set<String>>();
+        Set<String> examples = new LinkedHashSet<String>();
+        try {
+        	wordKinds = getWordKinds(driver);
+        }
+        catch (Exception e) {}
+        try {
+        	examples = getExamples(driver);
+        }
+        catch (Exception e) {}
+        try {
+        	if (!wordKinds.isEmpty()) {
+        		Map<String, Map<String, String>> wordKindsMap = new TreeMap<String, Map<String, String>>();
+        		for (String kind: wordKinds.keySet()) {
+        			Map<String, String> preklady = new TreeMap<String, String>();
+        			Set<String> examplesSet = wordKinds.get(kind);
+        			if (!examplesSet.isEmpty()) {
+        				for (String example: examplesSet) {
+        					String translation = translate(example, driver);
+        					preklady.put(example, translation);
+        				}
+        			}
+        			wordKindsMap.put(kind, preklady);
+        		}
+        		word.setWordKinds(wordKindsMap);
+        	}
+        }
+        catch (Exception e) {}
+        
+        try {
+        	if (!examples.isEmpty()) {
+        		Map<String, String> examplesMap = new TreeMap<String, String>();
+        		for (String example: examples) {
+        			String translation = translate(example, driver);
+        			examplesMap.put(example, translation);
+        		}
+        		word.setExamples(examplesMap);
+        	}
+        }
+        catch (Exception e) {}
+        
+        return word;
+    }
+    
+    static Map<String, Set<String>> getWordKinds(WebDriver driver) throws InterruptedException {
+    	
+        WebElement resultTab = driver.findElement(By.className("Sp3AF"));
+    	try {
+        	List<WebElement> expands = resultTab.findElements(By.className("VK4HE"));
+        	for (WebElement expand: expands)
+        		expand.click();
+        }
+        catch (Exception e) { }
+    	
+    	WebElement description = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[2]/c-wiz/section/div/div/div[1]/div[1]/div/div"));
+    	List<WebElement> inner = allElements(description);
+        
+	     // Word kinds - EN
+    	Map<String, Set<String>> wordKinds = new TreeMap<String, Set<String>>();
         String wordKind = "";
         
         for (WebElement element: inner) {
@@ -198,81 +168,30 @@ public class Translator
         	if (element.getText() != null && !element.getText().isBlank()) {
         		
         		if (isWordKind(Arrays.asList(slovneDruhy), element.getText())) {
-        			obsahy.add(element.getText());
         			wordKind = element.getText();
         		}
         		
-        		if (element.getAttribute("class").equals("fw3eif") && element.getAttribute("lang") != null && !element.getAttribute("lang").isEmpty()) {
-        			String meaning = element.getText();
-        			Set<String> meanings = null;
+        		if (element.getAttribute("class").equals("MZgjEb") &&
+    				element.getAttribute("lang") != null && !element.getAttribute("lang").isEmpty()) {
+        			String example = element.getText();
+        			Set<String> examples = null;
         			if (wordKinds.containsKey(wordKind)) {
-        				meanings = wordKinds.get(wordKind);
+        				examples = wordKinds.get(wordKind);
         			}
         			else {
-        				meanings = new HashSet<String>();
+        				examples = new HashSet<String>();
         			}
-        			meanings.add(meaning);
-        			wordKinds.put(wordKind, meanings);
+        			examples.add(example);
+        			wordKinds.put(wordKind, examples);
             	}
         	}
         }
         
-        word.setWordKinds(wordKinds);
-        
-        return word;
+        return wordKinds;
     }
     
-    static Word setSKMeanings(WebDriver driver, Word word) {
-        WebElement descriptionSK = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[2]/c-wiz/section/div/div/div[2]/div/div/div[1]"));
-     
-        try {
-        	WebElement expand = descriptionSK.findElements(By.className("VK4HE")).get(1);
-        	expand.click();
-	        expand.findElement(By.tagName("i")).click();
-        }
-        catch (Exception e) {
-        	
-        }
-        
-        List<WebElement> innerSK = allElements(descriptionSK);
-        
-        Map<String, Set<String>> wordKinds = new TreeMap<String, Set<String>>();
-        String wordKind = "";
-        for (WebElement element: innerSK) {
-        	
-        	if (element.getText() != null && !element.getText().isBlank()) {
-        		if (isWordKind(Arrays.asList(slovneDruhy), element.getText()))
-        			wordKind = element.getText();
-        	}
-        	if (element.getAttribute("class").equals("KnIHac")) {
-        		element = element.findElement(By.className("kgnlhe"));
-        		if (element.getAttribute("data-sl") != null && !element.getAttribute("data-sl").isEmpty() &&
-            			element.getAttribute("data-sl").equals("sk") &&
-            			element.getAttribute("role") != null && !element.getAttribute("role").isEmpty() &&
-            			element.getAttribute("role").equals("button")) {
-                		if (element.getText() != null && !element.getText().isBlank()) {
-                			if (!wordKind.isEmpty()) {
-                				Set<String> meanings = null;
-                    			if (wordKinds.containsKey(wordKind)) {
-                    				meanings = wordKinds.get(wordKind);
-                    			}
-                    			else {
-                    				meanings = new HashSet<String>();
-                    			}
-                    			meanings.add(element.getText());
-                    			wordKinds.put(wordKind, meanings);
-                			}
-                		}	
-                	}
-        	}
-        }
-        
-        word.setWordKindsSK(wordKinds);
-    	
-    	return word;
-    }
     
-    static Word getExamples(WebDriver driver, Word slovo) {
+    static Set<String> getExamples(WebDriver driver) {
     	Set<String> examples = new HashSet<String>(5);
     	WebElement examplesElement = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[2]/c-wiz/section/div/div/div[1]/div[2]/div/div[1]"));
     	List<WebElement> elements = examplesElement.findElements(By.tagName("html-blob"));
@@ -283,9 +202,23 @@ public class Translator
     		if (pocet >= 5)
     			break;
     	}
-    	
-    	slovo.setPouzitie(examples);
-    	return slovo;
+    	return examples;
+    }
+    
+    static String translate(String toTranslate, WebDriver driver) throws InterruptedException {
+    	String translation = "";
+    	try {
+    		WebElement input = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[1]/div[2]/div[2]/c-wiz[1]/span/span/div/textarea"));
+    		input.sendKeys(toTranslate);
+    		Thread.sleep(2000);
+    		
+    		WebElement output = driver.findElement(By.xpath("/html/body/c-wiz/div/div[2]/c-wiz/div[2]/c-wiz/div[1]/div[2]/div[2]/c-wiz[2]/div[5]/div/div[1]"));
+	    	
+	        translation = output.getText();
+	        input.clear();
+    	}
+    	catch (Exception e) {}
+    	return translation;
     }
     
     static List<WebElement> allElements(WebElement element) {
@@ -300,17 +233,6 @@ public class Translator
     	return elements;
     }
     
-    static List<WebElement> allElementsSK(WebElement element) {
-    	List<WebElement> elements = new ArrayList<WebElement>();
-    	List<WebElement> list = element.findElements(By.tagName("span"));
-    	if (!list.isEmpty()) {
-    		elements.addAll(list);
-    		for (WebElement elementIn: list)
-    			elements.addAll(allElements(elementIn));
-    	}
-    	
-    	return elements;
-    }
     
     static boolean isWordKind(List<String> wordKinds, String word) {
     	boolean isWordKind = false;
@@ -325,57 +247,61 @@ public class Translator
     	return isWordKind;
     }
     
-    static void createExcel(Set<Word> slova) throws IOException {
+    static void createExcel(Set<Word> slova, int order) throws IOException {
     	Workbook workbook = new XSSFWorkbook();
     	Sheet sheet = workbook.createSheet("Preklady");
+    	
+
+    	Font font = workbook.createFont();
+        font.setFontHeightInPoints((short)10);
+        font.setFontName("Arial");
+        font.setColor(IndexedColors.BLACK.getIndex());
+        font.setBold(true);
+
+        CellStyle cellStyle = workbook.createCellStyle();
+        cellStyle.setFont(font);
     	
     	List<Word> sorted = new ArrayList<Word>(slova);
     	Collections.sort(sorted);
     	
     	int rowNum = 0;
-    	for (Word slovo: sorted) {
+    	for (Word word: sorted) {
     		Row rowInit = sheet.createRow(rowNum++);
-    		rowInit.createCell(0).setCellValue(slovo.getWord());
-    		rowInit.createCell(1).setCellValue(slovo.getTranslation());
+    		Cell c1 = rowInit.createCell(0);
+    		c1.setCellStyle(cellStyle);
+    		c1.setCellValue(word.getWord());
+    		Cell c2 = rowInit.createCell(1);
+    		c2.setCellStyle(cellStyle);
+    		c2.setCellValue(word.getTranslation());
     		
-    		System.out.println("createExcel - processingWord " + slovo.getWord());
+    		System.out.println("createExcel - processingWord " + word.getWord());
     		// Word kinds for every word
-    		int index = 0;
-    		for (String druh: slovneDruhyMale) {
-    			
-    			int druhovEN = 0;
-    			int druhovSK = 0;
-    			Set<String> druhySK = new LinkedHashSet<>();
-    			Set<String> druhyEN = new LinkedHashSet<>();
-    			if (slovo.getWordKinds().size() > 0 && slovo.getWordKinds().containsKey(druh)) {
-    				druhyEN = slovo.getWordKinds().get(druh);
-    				druhovEN = druhyEN.size();
+    		
+    		if (!word.getWordKinds().isEmpty()) {
+    			Map<String, Map<String, String>> kindsMap = word.getWordKinds();
+    			Set<String> kinds = kindsMap.keySet();
+    			for (String kind: kinds) {
+    				Row kindRow = sheet.createRow(rowNum++);
+    				kindRow.createCell(0).setCellValue(kind);
+    				Map<String, String> exampleMap = kindsMap.get(kind);
+    				if (!exampleMap.isEmpty()) {
+    					for (String example: exampleMap.keySet()) {
+    						Row exampleRow = sheet.createRow(rowNum++);
+    						exampleRow.createCell(0).setCellValue(example);
+    						exampleRow.createCell(1).setCellValue(exampleMap.get(example));
+    					}
+    				}
     			}
-    			if (slovo.getWordKindsSK().size() > 0 && slovo.getWordKindsSK().containsKey(druh)) {
-    				druhySK = slovo.getWordKindsSK().get(druh);
-    				druhovSK = druhySK.size();
-    			}
-    			int max = Math.max(druhovEN, druhovSK);
-    			
-    			if (max > 0) {
-    				Row headerRow = sheet.createRow(rowNum++);
-    				headerRow.createCell(0).setCellValue(slovneDruhy[index]);
-    				for (int i = 0; i < max; i++) {
-		    			Row row = sheet.createRow(rowNum++);
-		    			if (!druhyEN.isEmpty())
-		    				row.createCell(0).setCellValue(getValueIfExists(druhyEN, i));
-		    			if (!druhySK.isEmpty())
-		    				row.createCell(1).setCellValue(getValueIfExists(druhySK, i));
-		    		}
-    			}
-    			index++;
     		}
-    		if (slovo.getPouzitie().size() > 0) {
+    		
+    		if (word.getExamples().size() > 0) {
     			Row row = sheet.createRow(rowNum++);
     			row.createCell(0).setCellValue("Priklady pouzitia");
-    			for (String pouzitie: slovo.getPouzitie()) {
+    			Map<String, String> examples = word.getExamples();
+    			for (String example: examples.keySet()) {
     				Row rowPouz = sheet.createRow(rowNum++);
-    				rowPouz.createCell(0).setCellValue(pouzitie);
+    				rowPouz.createCell(0).setCellValue(example);
+    				rowPouz.createCell(1).setCellValue(examples.get(example));
     			}
     		}
     		
@@ -383,15 +309,16 @@ public class Translator
     		sheet.createRow(rowNum++);
     	}
     	
-    	FileOutputStream fileOut = new FileOutputStream("C:\\Users\\a808683\\Documents\\Preklady.xlsx");
+    	String name = "C:\\Users\\a808683\\Documents\\Preklady" + order + ".xlsx";
+    	FileOutputStream fileOut = new FileOutputStream(name);
     	workbook.write(fileOut);
     	fileOut.close();
     }
     
-    static Set<String> readExcel() {
+    static Set<String> readExcel(File xslx) {
     	Set<String> slova = new LinkedHashSet<String>();
     	try {
-			Workbook workbook = WorkbookFactory.create(new File("C:\\Users\\a808683\\Documents\\Zdroj.xlsx"));
+			Workbook workbook = WorkbookFactory.create(xslx);
 			Sheet sheet = workbook.getSheetAt(0);
 			for (Row row: sheet) {
 	            for(Cell cell: row) {
@@ -403,8 +330,18 @@ public class Translator
 			e.printStackTrace();
 		}
     	
-    	System.out.println("Input words: " + slova.size());
     	return slova;
+    }
+    
+    static Set<String> readWords(String adresary) {
+    	Set<String> words = new LinkedHashSet<String>();
+    	File[] excels = new File(adresary).listFiles();
+    	for (File xlsx: excels) {
+    		if (xlsx.getName().contains("xlsx"))
+    			words.addAll(readExcel(xlsx));
+    	}
+    	System.out.println("Input words: " + words.size());
+    	return words;
     }
     
     static String getValueIfExists(Set<String> set, int i) {
